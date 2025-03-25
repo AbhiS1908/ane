@@ -1,4 +1,4 @@
-const Cash = require('../models/CashModel');
+const Cash = require('../models/cashModel');
 const CashForm = require('../models/cashFormModel');
 
 const SequenceTracker = require('../models/SequenceTracker'); // Import the SequenceTracker model
