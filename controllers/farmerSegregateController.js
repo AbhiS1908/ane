@@ -131,17 +131,87 @@ exports.getFarmerSegregateByFarmerId = async (req, res) => {
 // Update a Cash Form
 exports.updateFarmerSegregate = async (req, res) => {
     try {
-        const { id } = req.params; // Use the document's unique _id
+        const { id } = req.params;
 
-        const updatedFarmerSegregate = await FarmerSegregate.findByIdAndUpdate(id, req.body, { new: true });
-
-        if (!updatedFarmerSegregate) {
-            return res.status(404).json({ error: 'Cash Form not found' });
+        // Retrieve the existing farmerSegregate document before update
+        const existingFarmerSegregate = await FarmerSegregate.findById(id);
+        if (!existingFarmerSegregate) {
+            return res.status(404).json({ error: 'Farmer Form not found' });
         }
 
-        res.status(200).json({ message: 'Cash Form updated successfully', updatedFarmerSegregate });
+        const farmerStockId = existingFarmerSegregate.farmerStockId;
+        const farmerStock = await FarmerStock.findById(farmerStockId);
+        if (!farmerStock) {
+            return res.status(404).json({ error: 'farmer Stock not found' });
+        }
+
+        // Fetch all farmerSegregate entries for the farmerStock sorted by creation time
+        const farmerSegregates = await FarmerSegregate.find({ farmerStockId }).sort({ createdAt: 1 });
+
+        // Determine the index of the current farmerSegregate entry
+        const index = farmerSegregates.findIndex(cs => cs._id.equals(id));
+        if (index === -1) {
+            return res.status(404).json({ error: 'farmer Segregate not found in farmer Stock' });
+        }
+
+        // Validate the index to ensure it's within the allowed range (0-5)
+        if (index < 0 || index >= 6) {
+            return res.status(400).json({ error: 'Invalid farmer Segregate index' });
+        }
+
+        // Update the farmerSegregate with new data
+        const updatedFarmerSegregate = await FarmerSegregate.findByIdAndUpdate(
+            id,
+            req.body,
+            { new: true }
+        );
+
+        // Determine which totalWeight field to update in farmerStock (totalWeight1 to totalWeight6)
+        const totalWeightField = `totalWeight${index + 1}`;
+        farmerStock[totalWeightField] = updatedFarmerSegregate.totalWeight;
+
+        // Update the finalPrices array if the finalPrice has changed
+        const oldFinalPrice = existingFarmerSegregate.finalPrice;
+        const newFinalPrice = updatedFarmerSegregate.finalPrice;
+        if (oldFinalPrice !== newFinalPrice) {
+            if (farmerStock.finalPrices.length > index) {
+                farmerStock.finalPrices[index] = newFinalPrice;
+            } else {
+                return res.status(500).json({ error: 'Final prices array inconsistency detected' });
+            }
+        }
+
+        // Save the updated farmerStock
+        await farmerStock.save();
+
+        // Recalculate aggregated totals using all farmerSegregate entries
+        const aggregation = await FarmerSegregate.aggregate([
+            { $match: { farmerStockId: farmerStock._id } },
+            {
+                $group: {
+                    _id: "$farmerStockId",
+                    finalTotalWeight: { $sum: "$totalWeight" },
+                    totalFinalPrice: { $sum: "$finalPrice" },
+                    finalTotalPriceStandard: { $sum: "$totalPriceStandard" },
+                    finalTotalPriceFinal: { $sum: "$totalPriceFinal" }
+                }
+            }
+        ]);
+
+        // Update farmerStock with the new aggregated totals
+        if (aggregation.length > 0) {
+            await FarmerStock.findByIdAndUpdate(farmerStockId, {
+                finalTotalWeight: aggregation[0].finalTotalWeight,
+                totalFinalPrice: aggregation[0].totalFinalPrice,
+                finalTotalPriceStandard: aggregation[0].finalTotalPriceStandard,
+                finalTotalPriceFinal: aggregation[0].finalTotalPriceFinal
+            });
+        }
+
+        res.status(200).json({ message: 'farmer Form updated successfully', updatedFarmerSegregate });
     } catch (error) {
-        res.status(500).json({ error: 'Error updating Cash Form' });
+        console.error(error);
+        res.status(500).json({ error: 'Error updating farmer Form', details: error.message });
     }
 };
 

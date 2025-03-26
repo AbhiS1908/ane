@@ -133,17 +133,87 @@ exports.getCashSegregateByCashId = async (req, res) => {
 // Update a Cash Form
 exports.updateCashSegregate = async (req, res) => {
     try {
-        const { id } = req.params; // Use the document's unique _id
+        const { id } = req.params;
 
-        const updatedCashSegregate = await CashSegregate.findByIdAndUpdate(id, req.body, { new: true });
-
-        if (!updatedCashSegregate) {
+        // Retrieve the existing CashSegregate document before update
+        const existingCashSegregate = await CashSegregate.findById(id);
+        if (!existingCashSegregate) {
             return res.status(404).json({ error: 'Cash Form not found' });
+        }
+
+        const cashStockId = existingCashSegregate.cashStockId;
+        const cashStock = await CashStock.findById(cashStockId);
+        if (!cashStock) {
+            return res.status(404).json({ error: 'Cash Stock not found' });
+        }
+
+        // Fetch all CashSegregate entries for the CashStock sorted by creation time
+        const cashSegregates = await CashSegregate.find({ cashStockId }).sort({ createdAt: 1 });
+
+        // Determine the index of the current CashSegregate entry
+        const index = cashSegregates.findIndex(cs => cs._id.equals(id));
+        if (index === -1) {
+            return res.status(404).json({ error: 'Cash Segregate not found in Cash Stock' });
+        }
+
+        // Validate the index to ensure it's within the allowed range (0-5)
+        if (index < 0 || index >= 6) {
+            return res.status(400).json({ error: 'Invalid Cash Segregate index' });
+        }
+
+        // Update the CashSegregate with new data
+        const updatedCashSegregate = await CashSegregate.findByIdAndUpdate(
+            id,
+            req.body,
+            { new: true }
+        );
+
+        // Determine which totalWeight field to update in CashStock (totalWeight1 to totalWeight6)
+        const totalWeightField = `totalWeight${index + 1}`;
+        cashStock[totalWeightField] = updatedCashSegregate.totalWeight;
+
+        // Update the finalPrices array if the finalPrice has changed
+        const oldFinalPrice = existingCashSegregate.finalPrice;
+        const newFinalPrice = updatedCashSegregate.finalPrice;
+        if (oldFinalPrice !== newFinalPrice) {
+            if (cashStock.finalPrices.length > index) {
+                cashStock.finalPrices[index] = newFinalPrice;
+            } else {
+                return res.status(500).json({ error: 'Final prices array inconsistency detected' });
+            }
+        }
+
+        // Save the updated CashStock
+        await cashStock.save();
+
+        // Recalculate aggregated totals using all CashSegregate entries
+        const aggregation = await CashSegregate.aggregate([
+            { $match: { cashStockId: cashStock._id } },
+            {
+                $group: {
+                    _id: "$cashStockId",
+                    finalTotalWeight: { $sum: "$totalWeight" },
+                    totalFinalPrice: { $sum: "$finalPrice" },
+                    finalTotalPriceStandard: { $sum: "$totalPriceStandard" },
+                    finalTotalPriceFinal: { $sum: "$totalPriceFinal" }
+                }
+            }
+        ]);
+
+        // Update CashStock with the new aggregated totals
+        if (aggregation.length > 0) {
+            await CashStock.findByIdAndUpdate(cashStockId, {
+                finalTotalWeight: aggregation[0].finalTotalWeight,
+                totalFinalPrice: aggregation[0].totalFinalPrice,
+                finalTotalPriceStandard: aggregation[0].finalTotalPriceStandard,
+                finalTotalPriceFinal: aggregation[0].finalTotalPriceFinal
+            });
         }
 
         res.status(200).json({ message: 'Cash Form updated successfully', updatedCashSegregate });
     } catch (error) {
-        res.status(500).json({ error: 'Error updating Cash Form' });
+        console.error(error);
+        res.status(500).json({ error: 'Error updating Cash Form', details: error.message });
     }
 };
 

@@ -131,17 +131,87 @@ exports.getVendorSegregateByVendorId = async (req, res) => {
 // Update a Cash Form
 exports.updateVendorSegregate = async (req, res) => {
     try {
-        const { id } = req.params; // Use the document's unique _id
+        const { id } = req.params;
 
-        const updatedVendorSegregate = await VendorSegregate.findByIdAndUpdate(id, req.body, { new: true });
-
-        if (!updatedVendorSegregate) {
-            return res.status(404).json({ error: 'Cash Form not found' });
+        // Retrieve the existing VendorSegregate document before update
+        const existingVendorSegregate = await VendorSegregate.findById(id);
+        if (!existingVendorSegregate) {
+            return res.status(404).json({ error: 'Vendor Form not found' });
         }
 
-        res.status(200).json({ message: 'Cash Form updated successfully', updatedVendorSegregate });
+        const vendorStockId = existingVendorSegregate.vendorStockId;
+        const vendorStock = await VendorStock.findById(vendorStockId);
+        if (!vendorStock) {
+            return res.status(404).json({ error: 'vendor Stock not found' });
+        }
+
+        // Fetch all vendorSegregate entries for the vendorStock sorted by creation time
+        const vendorSegregates = await VendorSegregate.find({ vendorStockId }).sort({ createdAt: 1 });
+
+        // Determine the index of the current vendorSegregate entry
+        const index = vendorSegregates.findIndex(cs => cs._id.equals(id));
+        if (index === -1) {
+            return res.status(404).json({ error: 'vendor Segregate not found in vendor Stock' });
+        }
+
+        // Validate the index to ensure it's within the allowed range (0-5)
+        if (index < 0 || index >= 6) {
+            return res.status(400).json({ error: 'Invalid vendor Segregate index' });
+        }
+
+        // Update the vendorSegregate with new data
+        const updatedVendorSegregate = await VendorSegregate.findByIdAndUpdate(
+            id,
+            req.body,
+            { new: true }
+        );
+
+        // Determine which totalWeight field to update in VendorStock (totalWeight1 to totalWeight6)
+        const totalWeightField = `totalWeight${index + 1}`;
+        vendorStock[totalWeightField] = updatedVendorSegregate.totalWeight;
+
+        // Update the finalPrices array if the finalPrice has changed
+        const oldFinalPrice = existingVendorSegregate.finalPrice;
+        const newFinalPrice = updatedVendorSegregate.finalPrice;
+        if (oldFinalPrice !== newFinalPrice) {
+            if (vendorStock.finalPrices.length > index) {
+                vendorStock.finalPrices[index] = newFinalPrice;
+            } else {
+                return res.status(500).json({ error: 'Final prices array inconsistency detected' });
+            }
+        }
+
+        // Save the updated vendorStock
+        await vendorStock.save();
+
+        // Recalculate aggregated totals using all vendorSegregate entries
+        const aggregation = await VendorSegregate.aggregate([
+            { $match: { vendorStockId: vendorStock._id } },
+            {
+                $group: {
+                    _id: "$vendorStockId",
+                    finalTotalWeight: { $sum: "$totalWeight" },
+                    totalFinalPrice: { $sum: "$finalPrice" },
+                    finalTotalPriceStandard: { $sum: "$totalPriceStandard" },
+                    finalTotalPriceFinal: { $sum: "$totalPriceFinal" }
+                }
+            }
+        ]);
+
+        // Update vendorStock with the new aggregated totals
+        if (aggregation.length > 0) {
+            await VendorStock.findByIdAndUpdate(vendorStockId, {
+                finalTotalWeight: aggregation[0].finalTotalWeight,
+                totalFinalPrice: aggregation[0].totalFinalPrice,
+                finalTotalPriceStandard: aggregation[0].finalTotalPriceStandard,
+                finalTotalPriceFinal: aggregation[0].finalTotalPriceFinal
+            });
+        }
+
+        res.status(200).json({ message: 'vendor Form updated successfully', updatedVendorSegregate });
     } catch (error) {
-        res.status(500).json({ error: 'Error updating Cash Form' });
+        console.error(error);
+        res.status(500).json({ error: 'Error updating vendor Form', details: error.message });
     }
 };
 
