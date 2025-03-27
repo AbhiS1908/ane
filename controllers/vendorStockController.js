@@ -41,7 +41,7 @@ exports.createVendorStock = async (req, res) => {
             status,
             profit,
             weight,
-            product: vendor.product,
+            product,
             poNo: vendor.poNo,
             transportationCost: dividedTransportationCost // Add this line
 

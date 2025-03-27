@@ -41,7 +41,7 @@ exports.createFarmerStock = async (req, res) => {
             status,
             profit,
             weight,
-            product: farmer.product,
+            product,
             poNo: farmer.poNo,
             transportationCost: dividedTransportationCost // Add this line
 
