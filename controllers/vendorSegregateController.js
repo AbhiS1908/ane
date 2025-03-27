@@ -25,22 +25,38 @@ exports.createVendorSegregate = async (req, res) => {
 
         await vendorSegregate.save();
 
-        vendorStock.finalPrices.push(finalPrice);
-        if (!vendorStock.totalWeight1) {
-            vendorStock.totalWeight1 = totalWeight;
-        } else if (!vendorStock.totalWeight2) {
-            vendorStock.totalWeight2 = totalWeight;
-        } else if (!vendorStock.totalWeight3) {
-            vendorStock.totalWeight3 = totalWeight;
-        } else if (!vendorStock.totalWeight4) {
-            vendorStock.totalWeight4 = totalWeight;
-        } else if (!vendorStock.totalWeight5) {
-            vendorStock.totalWeight5 = totalWeight;
-        } else if (!vendorStock.totalWeight6) {
-            vendorStock.totalWeight6 = totalWeight;
-        } else {
-            return res.status(400).json({ error: 'All 6 totalWeight fields are already filled' });
+        // Mapping makhana types to specific indices
+        const makhanaMapping = {
+            "6 Sutta": 0,
+            "5 Sutta": 1,
+            "4 Sutta": 2,
+            "3 Sutta": 3,
+            "Other": 4,
+            "Waste": 5
+        };
+
+        const index = makhanaMapping[makhana];
+        if (index === undefined) {
+            return res.status(400).json({ error: 'Invalid makhana value' });
         }
+
+        // Ensure finalPrices array has 6 elements
+        if (!vendorStock.finalPrices) {
+            vendorStock.finalPrices = Array(6).fill(null);
+        }
+
+        vendorStock.finalPrices[index] = finalPrice; // Assign finalPrice to the correct index
+
+        // Store totalWeight in the appropriate field
+        switch (index) {
+            case 0: vendorStock.totalWeight1 = totalWeight; break;
+            case 1: vendorStock.totalWeight2 = totalWeight; break;
+            case 2: vendorStock.totalWeight3 = totalWeight; break;
+            case 3: vendorStock.totalWeight4 = totalWeight; break;
+            case 4: vendorStock.totalWeight5 = totalWeight; break;
+            case 5: vendorStock.totalWeight6 = totalWeight; break;
+        }
+
         await vendorStock.save();
 
         // Update totals in vendorStock

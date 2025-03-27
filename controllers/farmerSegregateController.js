@@ -25,22 +25,38 @@ exports.createFarmerSegregate = async (req, res) => {
 
         await farmerSegregate.save();
 
-        farmerStock.finalPrices.push(finalPrice);
-        if (!farmerStock.totalWeight1) {
-            farmerStock.totalWeight1 = totalWeight;
-        } else if (!farmerStock.totalWeight2) {
-            farmerStock.totalWeight2 = totalWeight;
-        } else if (!farmerStock.totalWeight3) {
-            farmerStock.totalWeight3 = totalWeight;
-        } else if (!farmerStock.totalWeight4) {
-            farmerStock.totalWeight4 = totalWeight;
-        } else if (!farmerStock.totalWeight5) {
-            farmerStock.totalWeight5 = totalWeight;
-        } else if (!farmerStock.totalWeight6) {
-            farmerStock.totalWeight6 = totalWeight;
-        } else {
-            return res.status(400).json({ error: 'All 6 totalWeight fields are already filled' });
+        // Mapping makhana types to specific indices
+        const makhanaMapping = {
+            "6 Sutta": 0,
+            "5 Sutta": 1,
+            "4 Sutta": 2,
+            "3 Sutta": 3,
+            "Other": 4,
+            "Waste": 5
+        };
+
+        const index = makhanaMapping[makhana];
+        if (index === undefined) {
+            return res.status(400).json({ error: 'Invalid makhana value' });
         }
+
+        // Ensure finalPrices array has 6 elements
+        if (!farmerStock.finalPrices) {
+            farmerStock.finalPrices = Array(6).fill(null);
+        }
+
+        farmerStock.finalPrices[index] = finalPrice; // Assign finalPrice to the correct index
+
+        // Store totalWeight in the appropriate field
+        switch (index) {
+            case 0: farmerStock.totalWeight1 = totalWeight; break;
+            case 1: farmerStock.totalWeight2 = totalWeight; break;
+            case 2: farmerStock.totalWeight3 = totalWeight; break;
+            case 3: farmerStock.totalWeight4 = totalWeight; break;
+            case 4: farmerStock.totalWeight5 = totalWeight; break;
+            case 5: farmerStock.totalWeight6 = totalWeight; break;
+        }
+
         await farmerStock.save();
 
         // Update totals in farmerStock
@@ -69,7 +85,7 @@ exports.createFarmerSegregate = async (req, res) => {
         res.status(201).json({ message: 'farmer Segregation created successfully', farmerSegregate });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Error creating Cash Segregation' });
+        res.status(500).json({ error: 'Error creating farmer Segregation' });
     }
 };
 

@@ -12,6 +12,20 @@ exports.createCashStock = async (req, res) => {
             return res.status(404).json({ error: 'Cash not found' });
         }
 
+        const existingCashStocks = await CashStock.find({ cashFormId });
+        const totalEntries = existingCashStocks.length + 1; // Include the new entry
+
+        // Divide the transportationCost equally
+        const dividedTransportationCost = cash.transportationCost / totalEntries;
+
+        // Update existing CashStock entries with the new divided cost
+        if (existingCashStocks.length > 0) {
+            await CashStock.updateMany(
+                { cashFormId },
+                { transportationCost: dividedTransportationCost }
+            );
+        }
+
         const cashStock = new CashStock({
             cashFormId,
             cashName: cash.cashName,
@@ -28,7 +42,9 @@ exports.createCashStock = async (req, res) => {
             profit,
             weight,
             product: cash.product,
-            poNo: cash.poNo
+            poNo: cash.poNo,
+            transportationCost: dividedTransportationCost // Add this line
+
            
         });
 
@@ -111,7 +127,8 @@ exports.getCashStockByCashId = async (req, res) => {
             totalWeight4: stock.totalWeight4,
             totalWeight5: stock.totalWeight5,
             totalWeight6: stock.totalWeight6,
-            poNo: stock.poNo
+            poNo: stock.poNo,
+            transportationCost: stock.transportationCost
             
         }));
 
@@ -144,16 +161,28 @@ exports.updateCashStock = async (req, res) => {
 // Delete a Cash Entry and associated Cash Form
 exports.deleteCashStock = async (req, res) => {
     try {
-        const { id } = req.params; // Use the document's unique _id
+        const { id } = req.params;
+        const deletedCashStock = await CashStock.findByIdAndDelete(id);
 
-        const deletedCashForm = await CashStock.findByIdAndDelete(id);
-        if (!deletedCashForm) {
-            return res.status(404).json({ error: 'Cash Form not found' });
+        if (!deletedCashStock) {
+            return res.status(404).json({ error: 'CashStock not found' });
         }
 
-        res.status(200).json({ message: 'Cash Form deleted successfully' });
+        // Recalculate transportationCost for remaining entries
+        const cashForm = await CashForm.findById(deletedCashStock.cashFormId);
+        const remainingStocks = await CashStock.find({ cashFormId: deletedCashStock.cashFormId });
+
+        if (remainingStocks.length > 0 && cashForm) {
+            const dividedCost = cashForm.transportationCost / remainingStocks.length;
+            await CashStock.updateMany(
+                { cashFormId: deletedCashStock.cashFormId },
+                { transportationCost: dividedCost }
+            );
+        }
+
+        res.status(200).json({ message: 'CashStock deleted successfully' });
     } catch (error) {
-        res.status(500).json({ error: 'Error deleting Cash Form' });
+        res.status(500).json({ error: 'Error deleting CashStock', details: error.message });
     }
 };
 

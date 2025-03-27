@@ -35,6 +35,8 @@ const VendorStockSchema = new mongoose.Schema({
     totalWeight5: { type: Number, default: 0 },
     totalWeight6: { type: Number, default: 0 },
     poNo: String,
+    transportationCost: { type: Number, default: 0 }, // Add this line
+
 
 });
 module.exports = mongoose.model('VendorStock', VendorStockSchema);

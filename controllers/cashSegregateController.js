@@ -25,23 +25,38 @@ exports.createCashSegregate = async (req, res) => {
 
         await cashSegregate.save();
 
-        cashStock.finalPrices.push(finalPrice);
-        // Store the totalWeight in the appropriate field
-        if (!cashStock.totalWeight1) {
-            cashStock.totalWeight1 = totalWeight;
-        } else if (!cashStock.totalWeight2) {
-            cashStock.totalWeight2 = totalWeight;
-        } else if (!cashStock.totalWeight3) {
-            cashStock.totalWeight3 = totalWeight;
-        } else if (!cashStock.totalWeight4) {
-            cashStock.totalWeight4 = totalWeight;
-        } else if (!cashStock.totalWeight5) {
-            cashStock.totalWeight5 = totalWeight;
-        } else if (!cashStock.totalWeight6) {
-            cashStock.totalWeight6 = totalWeight;
-        } else {
-            return res.status(400).json({ error: 'All 6 totalWeight fields are already filled' });
+        // Mapping makhana types to specific indices
+        const makhanaMapping = {
+            "6 Sutta": 0,
+            "5 Sutta": 1,
+            "4 Sutta": 2,
+            "3 Sutta": 3,
+            "Other": 4,
+            "Waste": 5
+        };
+
+        const index = makhanaMapping[makhana];
+        if (index === undefined) {
+            return res.status(400).json({ error: 'Invalid makhana value' });
         }
+
+        // Ensure finalPrices array has 6 elements
+        if (!cashStock.finalPrices) {
+            cashStock.finalPrices = Array(6).fill(null);
+        }
+
+        cashStock.finalPrices[index] = finalPrice; // Assign finalPrice to the correct index
+
+        // Store totalWeight in the appropriate field
+        switch (index) {
+            case 0: cashStock.totalWeight1 = totalWeight; break;
+            case 1: cashStock.totalWeight2 = totalWeight; break;
+            case 2: cashStock.totalWeight3 = totalWeight; break;
+            case 3: cashStock.totalWeight4 = totalWeight; break;
+            case 4: cashStock.totalWeight5 = totalWeight; break;
+            case 5: cashStock.totalWeight6 = totalWeight; break;
+        }
+
         await cashStock.save();
 
         // Update totals in CashStock
@@ -73,6 +88,7 @@ exports.createCashSegregate = async (req, res) => {
         res.status(500).json({ error: 'Error creating Cash Segregation' });
     }
 };
+
 
 
 // Get all Cash Entries
