@@ -89,27 +89,27 @@ exports.createVendorSegregate = async (req, res) => {
     }
 };
 
-// Get all Cash Entries
+// Get all Vendor Entries
 exports.getAllVendorSegregate = async (req, res) => {
     try {
         const vendorEntries = await VendorSegregate.find();
         res.status(200).json(vendorEntries);
     } catch (error) {
-        res.status(500).json({ error: 'Error fetching Cash entries' });
+        res.status(500).json({ error: 'Error fetching Vendor entries' });
     }
 };
 
-// Get Cash Form by Cash ID
+// Get Vendor Form by Vendor ID
 // exports.getVendorSegregateByVendorId = async (req, res) => {
 //     try {
 //         const { vendorStockId } = req.params;
-//         const vendorSegregate = await VendorSegregate.findOne({ vendorStockId }).populate('cashId');
+//         const vendorSegregate = await VendorSegregate.findOne({ vendorStockId }).populate('vendorId');
 //         if (!vendorSegregate) {
-//             return res.status(404).json({ error: 'Cash Form not found' });
+//             return res.status(404).json({ error: 'Vendor Form not found' });
 //         }
 //         res.status(200).json(vendorSegregate);
 //     } catch (error) {
-//         res.status(500).json({ error: 'Error fetching Cash Form' });
+//         res.status(500).json({ error: 'Error fetching Vendor Form' });
 //     }
 // };
 
@@ -117,11 +117,11 @@ exports.getVendorSegregateByVendorId = async (req, res) => {
     try {
         const { vendorStockId } = req.params;
 
-        // Fetch all cashStock records related to the given cashFormId
+        // Fetch all VendorStock records related to the given VendorFormId
         const vendorSegregate = await VendorSegregate.find({ vendorStockId }).populate('vendorStockId');
 
         if (!vendorSegregate || vendorSegregate.length === 0) {
-            return res.status(404).json({ error: 'No Cash Stock entries found for this Cash Form ID' });
+            return res.status(404).json({ error: 'No Vendor Stock entries found for this Vendor Form ID' });
         }
 
         // Map the data to extract only required fields
@@ -140,19 +140,34 @@ exports.getVendorSegregateByVendorId = async (req, res) => {
 
         res.status(200).json(formattedData);
     } catch (error) {
-        res.status(500).json({ error: 'Error fetching Cash Stock entries', details: error.message });
+        res.status(500).json({ error: 'Error fetching Vendor Stock entries', details: error.message });
     }
 };
 
-// Update a Cash Form
+// Update a Vendor Form
 exports.updateVendorSegregate = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Retrieve the existing VendorSegregate document before update
+        const makhanaMapping = {
+            "6 Sutta": 0,
+            "5 Sutta": 1,
+            "4 Sutta": 2,
+            "3 Sutta": 3,
+            "Other": 4,
+            "Waste": 5
+        };
+
+        // Retrieve existing VendorSegregate to get old makhana and index
         const existingVendorSegregate = await VendorSegregate.findById(id);
         if (!existingVendorSegregate) {
             return res.status(404).json({ error: 'Vendor Form not found' });
+        }
+
+        const oldMakhana = existingVendorSegregate.makhana;
+        const oldIndex = makhanaMapping[oldMakhana];
+        if (oldIndex === undefined) {
+            return res.status(400).json({ error: 'Invalid old makhana value' });
         }
 
         const vendorStockId = existingVendorSegregate.vendorStockId;
@@ -161,46 +176,51 @@ exports.updateVendorSegregate = async (req, res) => {
             return res.status(404).json({ error: 'vendor Stock not found' });
         }
 
-        // Fetch all vendorSegregate entries for the vendorStock sorted by creation time
-        const vendorSegregates = await VendorSegregate.find({ vendorStockId }).sort({ createdAt: 1 });
-
-        // Determine the index of the current vendorSegregate entry
-        const index = vendorSegregates.findIndex(cs => cs._id.equals(id));
-        if (index === -1) {
-            return res.status(404).json({ error: 'vendor Segregate not found in vendor Stock' });
-        }
-
-        // Validate the index to ensure it's within the allowed range (0-5)
-        if (index < 0 || index >= 6) {
-            return res.status(400).json({ error: 'Invalid vendor Segregate index' });
-        }
-
-        // Update the vendorSegregate with new data
+        // Update the VendorSegregate with new data
         const updatedVendorSegregate = await VendorSegregate.findByIdAndUpdate(
             id,
             req.body,
             { new: true }
         );
 
-        // Determine which totalWeight field to update in VendorStock (totalWeight1 to totalWeight6)
-        const totalWeightField = `totalWeight${index + 1}`;
-        vendorStock[totalWeightField] = updatedVendorSegregate.totalWeight;
-
-        // Update the finalPrices array if the finalPrice has changed
-        const oldFinalPrice = existingVendorSegregate.finalPrice;
-        const newFinalPrice = updatedVendorSegregate.finalPrice;
-        if (oldFinalPrice !== newFinalPrice) {
-            if (vendorStock.finalPrices.length > index) {
-                vendorStock.finalPrices[index] = newFinalPrice;
-            } else {
-                return res.status(500).json({ error: 'Final prices array inconsistency detected' });
-            }
+        const newMakhana = updatedVendorSegregate.makhana;
+        const newIndex = makhanaMapping[newMakhana];
+        if (newIndex === undefined) {
+            return res.status(400).json({ error: 'Invalid new makhana value' });
         }
 
-        // Save the updated vendorStock
+        // Handle changes in makhana type (index)
+        if (oldIndex !== newIndex) {
+            // Clear old index data in VendorStock
+            vendorStock[`totalWeight${oldIndex + 1}`] = null;
+            if (vendorStock.finalPrices && vendorStock.finalPrices.length > oldIndex) {
+                vendorStock.finalPrices[oldIndex] = null;
+            }
+
+            // Set new index data in vendorStock
+            vendorStock[`totalWeight${newIndex + 1}`] = updatedVendorSegregate.totalWeight;
+            if (!vendorStock.finalPrices) {
+                vendorStock.finalPrices = Array(6).fill(null);
+            }
+            if (vendorStock.finalPrices.length <= newIndex) {
+                vendorStock.finalPrices = [...vendorStock.finalPrices, ...Array(6 - vendorStock.finalPrices.length).fill(null)];
+            }
+            vendorStock.finalPrices[newIndex] = updatedVendorSegregate.finalPrice;
+        } else {
+            // Update existing index data in VendorStock
+            vendorStock[`totalWeight${oldIndex + 1}`] = updatedVendorSegregate.totalWeight;
+            if (!vendorStock.finalPrices) {
+                vendorStock.finalPrices = Array(6).fill(null);
+            }
+            if (vendorStock.finalPrices.length <= oldIndex) {
+                vendorStock.finalPrices = [...vendorStock.finalPrices, ...Array(6 - vendorStock.finalPrices.length).fill(null)];
+            }
+            vendorStock.finalPrices[oldIndex] = updatedVendorSegregate.finalPrice;
+        }
+
         await vendorStock.save();
 
-        // Recalculate aggregated totals using all vendorSegregate entries
+        // Recalculate aggregated totals
         const aggregation = await VendorSegregate.aggregate([
             { $match: { vendorStockId: vendorStock._id } },
             {
@@ -214,7 +234,6 @@ exports.updateVendorSegregate = async (req, res) => {
             }
         ]);
 
-        // Update vendorStock with the new aggregated totals
         if (aggregation.length > 0) {
             await VendorStock.findByIdAndUpdate(vendorStockId, {
                 finalTotalWeight: aggregation[0].finalTotalWeight,
@@ -227,24 +246,79 @@ exports.updateVendorSegregate = async (req, res) => {
         res.status(200).json({ message: 'vendor Form updated successfully', updatedVendorSegregate });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Error updating vendor Form', details: error.message });
+        res.status(500).json({ error: 'Error updating Vendor Form', details: error.message });
     }
 };
 
 
-// Delete a Cash Entry and associated Cash Form
+// Delete a Vendor Entry and associated Vendor Form
 exports.deleteVendorSegregate = async (req, res) => {
     try {
-        const { id } = req.params; // Use the document's unique _id
+        const { id } = req.params;
 
         const deletedVendorSegregate = await VendorSegregate.findByIdAndDelete(id);
         if (!deletedVendorSegregate) {
-            return res.status(404).json({ error: 'Cash Form not found' });
+            return res.status(404).json({ error: 'Vendor Form not found' });
         }
 
-        res.status(200).json({ message: 'Cash Form deleted successfully' });
+        const vendorStockId = deletedVendorSegregate.vendorStockId;
+        const vendorStock = await VendorStock.findById(vendorStockId);
+        if (!vendorStock) {
+            return res.status(404).json({ error: 'vendor Stock not found' });
+        }
+
+        const makhanaMapping = {
+            "6 Sutta": 0,
+            "5 Sutta": 1,
+            "4 Sutta": 2,
+            "3 Sutta": 3,
+            "Other": 4,
+            "Waste": 5
+        };
+
+        const makhana = deletedVendorSegregate.makhana;
+        const index = makhanaMapping[makhana];
+        if (index === undefined) {
+            return res.status(400).json({ error: 'Invalid makhana value in deleted entry' });
+        }
+
+        // Reset corresponding totalWeight and finalPrice
+        vendorStock[`totalWeight${index + 1}`] = null;
+        if (vendorStock.finalPrices && vendorStock.finalPrices.length > index) {
+            vendorStock.finalPrices[index] = null;
+        }
+        await vendorStock.save();
+
+        // Recalculate aggregated totals
+        const aggregation = await VendorSegregate.aggregate([
+            { $match: { vendorStockId: vendorStock._id } },
+            {
+                $group: {
+                    _id: "$vendorStockId",
+                    finalTotalWeight: { $sum: "$totalWeight" },
+                    totalFinalPrice: { $sum: "$finalPrice" },
+                    finalTotalPriceStandard: { $sum: "$totalPriceStandard" },
+                    finalTotalPriceFinal: { $sum: "$totalPriceFinal" }
+                }
+            }
+        ]);
+
+        const updateData = aggregation.length > 0 ? {
+            finalTotalWeight: aggregation[0].finalTotalWeight,
+            totalFinalPrice: aggregation[0].totalFinalPrice,
+            finalTotalPriceStandard: aggregation[0].finalTotalPriceStandard,
+            finalTotalPriceFinal: aggregation[0].finalTotalPriceFinal
+        } : {
+            finalTotalWeight: 0,
+            totalFinalPrice: 0,
+            finalTotalPriceStandard: 0,
+            finalTotalPriceFinal: 0
+        };
+
+        await VendorStock.findByIdAndUpdate(vendorStockId, updateData);
+
+        res.status(200).json({ message: 'vendor Form deleted successfully' });
     } catch (error) {
-        res.status(500).json({ error: 'Error deleting Cash Form' });
+        res.status(500).json({ error: 'Error deleting vendor Form', details: error.message });
     }
 };
-

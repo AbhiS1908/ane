@@ -151,30 +151,31 @@ exports.updateCashSegregate = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Retrieve the existing CashSegregate document before update
+        const makhanaMapping = {
+            "6 Sutta": 0,
+            "5 Sutta": 1,
+            "4 Sutta": 2,
+            "3 Sutta": 3,
+            "Other": 4,
+            "Waste": 5
+        };
+
+        // Retrieve existing CashSegregate to get old makhana and index
         const existingCashSegregate = await CashSegregate.findById(id);
         if (!existingCashSegregate) {
             return res.status(404).json({ error: 'Cash Form not found' });
+        }
+
+        const oldMakhana = existingCashSegregate.makhana;
+        const oldIndex = makhanaMapping[oldMakhana];
+        if (oldIndex === undefined) {
+            return res.status(400).json({ error: 'Invalid old makhana value' });
         }
 
         const cashStockId = existingCashSegregate.cashStockId;
         const cashStock = await CashStock.findById(cashStockId);
         if (!cashStock) {
             return res.status(404).json({ error: 'Cash Stock not found' });
-        }
-
-        // Fetch all CashSegregate entries for the CashStock sorted by creation time
-        const cashSegregates = await CashSegregate.find({ cashStockId }).sort({ createdAt: 1 });
-
-        // Determine the index of the current CashSegregate entry
-        const index = cashSegregates.findIndex(cs => cs._id.equals(id));
-        if (index === -1) {
-            return res.status(404).json({ error: 'Cash Segregate not found in Cash Stock' });
-        }
-
-        // Validate the index to ensure it's within the allowed range (0-5)
-        if (index < 0 || index >= 6) {
-            return res.status(400).json({ error: 'Invalid Cash Segregate index' });
         }
 
         // Update the CashSegregate with new data
@@ -184,25 +185,44 @@ exports.updateCashSegregate = async (req, res) => {
             { new: true }
         );
 
-        // Determine which totalWeight field to update in CashStock (totalWeight1 to totalWeight6)
-        const totalWeightField = `totalWeight${index + 1}`;
-        cashStock[totalWeightField] = updatedCashSegregate.totalWeight;
-
-        // Update the finalPrices array if the finalPrice has changed
-        const oldFinalPrice = existingCashSegregate.finalPrice;
-        const newFinalPrice = updatedCashSegregate.finalPrice;
-        if (oldFinalPrice !== newFinalPrice) {
-            if (cashStock.finalPrices.length > index) {
-                cashStock.finalPrices[index] = newFinalPrice;
-            } else {
-                return res.status(500).json({ error: 'Final prices array inconsistency detected' });
-            }
+        const newMakhana = updatedCashSegregate.makhana;
+        const newIndex = makhanaMapping[newMakhana];
+        if (newIndex === undefined) {
+            return res.status(400).json({ error: 'Invalid new makhana value' });
         }
 
-        // Save the updated CashStock
+        // Handle changes in makhana type (index)
+        if (oldIndex !== newIndex) {
+            // Clear old index data in CashStock
+            cashStock[`totalWeight${oldIndex + 1}`] = null;
+            if (cashStock.finalPrices && cashStock.finalPrices.length > oldIndex) {
+                cashStock.finalPrices[oldIndex] = null;
+            }
+
+            // Set new index data in CashStock
+            cashStock[`totalWeight${newIndex + 1}`] = updatedCashSegregate.totalWeight;
+            if (!cashStock.finalPrices) {
+                cashStock.finalPrices = Array(6).fill(null);
+            }
+            if (cashStock.finalPrices.length <= newIndex) {
+                cashStock.finalPrices = [...cashStock.finalPrices, ...Array(6 - cashStock.finalPrices.length).fill(null)];
+            }
+            cashStock.finalPrices[newIndex] = updatedCashSegregate.finalPrice;
+        } else {
+            // Update existing index data in CashStock
+            cashStock[`totalWeight${oldIndex + 1}`] = updatedCashSegregate.totalWeight;
+            if (!cashStock.finalPrices) {
+                cashStock.finalPrices = Array(6).fill(null);
+            }
+            if (cashStock.finalPrices.length <= oldIndex) {
+                cashStock.finalPrices = [...cashStock.finalPrices, ...Array(6 - cashStock.finalPrices.length).fill(null)];
+            }
+            cashStock.finalPrices[oldIndex] = updatedCashSegregate.finalPrice;
+        }
+
         await cashStock.save();
 
-        // Recalculate aggregated totals using all CashSegregate entries
+        // Recalculate aggregated totals
         const aggregation = await CashSegregate.aggregate([
             { $match: { cashStockId: cashStock._id } },
             {
@@ -216,7 +236,6 @@ exports.updateCashSegregate = async (req, res) => {
             }
         ]);
 
-        // Update CashStock with the new aggregated totals
         if (aggregation.length > 0) {
             await CashStock.findByIdAndUpdate(cashStockId, {
                 finalTotalWeight: aggregation[0].finalTotalWeight,
@@ -237,16 +256,71 @@ exports.updateCashSegregate = async (req, res) => {
 // Delete a Cash Entry and associated Cash Form
 exports.deleteCashSegregate = async (req, res) => {
     try {
-        const { id } = req.params; // Use the document's unique _id
+        const { id } = req.params;
 
         const deletedCashSegregate = await CashSegregate.findByIdAndDelete(id);
         if (!deletedCashSegregate) {
             return res.status(404).json({ error: 'Cash Form not found' });
         }
 
+        const cashStockId = deletedCashSegregate.cashStockId;
+        const cashStock = await CashStock.findById(cashStockId);
+        if (!cashStock) {
+            return res.status(404).json({ error: 'Cash Stock not found' });
+        }
+
+        const makhanaMapping = {
+            "6 Sutta": 0,
+            "5 Sutta": 1,
+            "4 Sutta": 2,
+            "3 Sutta": 3,
+            "Other": 4,
+            "Waste": 5
+        };
+
+        const makhana = deletedCashSegregate.makhana;
+        const index = makhanaMapping[makhana];
+        if (index === undefined) {
+            return res.status(400).json({ error: 'Invalid makhana value in deleted entry' });
+        }
+
+        // Reset corresponding totalWeight and finalPrice
+        cashStock[`totalWeight${index + 1}`] = null;
+        if (cashStock.finalPrices && cashStock.finalPrices.length > index) {
+            cashStock.finalPrices[index] = null;
+        }
+        await cashStock.save();
+
+        // Recalculate aggregated totals
+        const aggregation = await CashSegregate.aggregate([
+            { $match: { cashStockId: cashStock._id } },
+            {
+                $group: {
+                    _id: "$cashStockId",
+                    finalTotalWeight: { $sum: "$totalWeight" },
+                    totalFinalPrice: { $sum: "$finalPrice" },
+                    finalTotalPriceStandard: { $sum: "$totalPriceStandard" },
+                    finalTotalPriceFinal: { $sum: "$totalPriceFinal" }
+                }
+            }
+        ]);
+
+        const updateData = aggregation.length > 0 ? {
+            finalTotalWeight: aggregation[0].finalTotalWeight,
+            totalFinalPrice: aggregation[0].totalFinalPrice,
+            finalTotalPriceStandard: aggregation[0].finalTotalPriceStandard,
+            finalTotalPriceFinal: aggregation[0].finalTotalPriceFinal
+        } : {
+            finalTotalWeight: 0,
+            totalFinalPrice: 0,
+            finalTotalPriceStandard: 0,
+            finalTotalPriceFinal: 0
+        };
+
+        await CashStock.findByIdAndUpdate(cashStockId, updateData);
+
         res.status(200).json({ message: 'Cash Form deleted successfully' });
     } catch (error) {
-        res.status(500).json({ error: 'Error deleting Cash Form' });
+        res.status(500).json({ error: 'Error deleting Cash Form', details: error.message });
     }
 };
-
