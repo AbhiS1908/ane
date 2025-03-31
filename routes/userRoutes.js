@@ -29,6 +29,8 @@ const suttaVendorController = require('../controllers/suttaVendorController'); /
 const sutaCashController = require('../controllers/sutaCashController'); // Import the controller
 const sutaFarmerController = require('../controllers/sutaFarmerController'); // Import the controller
 const sutaVendorController = require('../controllers/sutaVendorcontroller'); // Import the controller
+const expenseController = require('../controllers/expenseController');
+const { register, login, authMiddleware } = require('../controllers/userController');
 
 
 
@@ -238,4 +240,19 @@ router.delete('/sutta-vendor-one/:id', sutaVendorController.deleteVendorSingleSt
 
 // Stock Out Route
 router.put('/sutta-vendor-stock-out-one/:_id', sutaVendorController.stockOut); // Perform stock out operation
+
+router.post('/expense', expenseController.createExpense);
+router.get('/expense', expenseController.getAllExpenses);
+router.get('/expense/:id', expenseController.getExpenseById);
+router.put('/expense/:id', expenseController.updateExpense);
+router.delete('/expense/:id', expenseController.deleteExpense);
+
+router.post('/register', register);
+router.post('/login', login);
+router.get('/admin', authMiddleware(['admin']), (req, res) => res.json({ message: 'Admin Access' }));
+router.get('/purchase', authMiddleware(['admin', 'purchase']), (req, res) => res.json({ message: 'Purchase Access' }));
+router.get('/segregation', authMiddleware(['admin', 'segregation']), (req, res) => res.json({ message: 'Segregation Access' }));
+router.get('/packaging', authMiddleware(['admin', 'packaging']), (req, res) => res.json({ message: 'Packaging Access' }));
+router.get('/expense', authMiddleware(['admin', 'expense']), (req, res) => res.json({ message: 'Expense Access' }));
+router.get('/credentials', authMiddleware(['admin', 'credentials']), (req, res) => res.json({ message: 'Credentials Access' }));
 module.exports = router

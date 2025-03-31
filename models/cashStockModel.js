@@ -37,6 +37,7 @@ const CashStockSchema = new mongoose.Schema({
 
     poNo: String,
     transportationCost: { type: Number, default: 0 }, // Add this line
+    eDate: Date
 
 
 });

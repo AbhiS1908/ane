@@ -36,6 +36,7 @@ const FarmerStockSchema = new mongoose.Schema({
     totalWeight6: { type: Number, default: 0 },
     poNo: String,
     transportationCost: { type: Number, default: 0 }, // Add this line
+    eDate: Date
 
 
 });

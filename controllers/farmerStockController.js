@@ -43,8 +43,8 @@ exports.createFarmerStock = async (req, res) => {
             weight,
             product,
             poNo: farmer.poNo,
-            transportationCost: dividedTransportationCost // Add this line
-
+            transportationCost: dividedTransportationCost, // Add this line
+            eDate: farmer.eDate
            
         });
 
@@ -127,7 +127,9 @@ exports.getFarmerStockByFarmerId = async (req, res) => {
             totalWeight5: stock.totalWeight5,
             totalWeight6: stock.totalWeight6,
             poNo: stock.poNo,
-            transportationCost: stock.transportationCost
+            transportationCost: stock.transportationCost,
+            eDate: stock.eDate
+
 
 
         }));
