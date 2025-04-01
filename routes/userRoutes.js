@@ -30,7 +30,8 @@ const sutaCashController = require('../controllers/sutaCashController'); // Impo
 const sutaFarmerController = require('../controllers/sutaFarmerController'); // Import the controller
 const sutaVendorController = require('../controllers/sutaVendorcontroller'); // Import the controller
 const expenseController = require('../controllers/expenseController');
-const { register, login, authMiddleware } = require('../controllers/userController');
+const { register, login, authMiddleware,getUsers, getUserById, updateUser, deleteUser } = require('../controllers/userController');
+const expenseDController = require('../controllers/expenseDController');
 
 
 
@@ -255,4 +256,15 @@ router.get('/segregation', authMiddleware(['admin', 'segregation']), (req, res) 
 router.get('/packaging', authMiddleware(['admin', 'packaging']), (req, res) => res.json({ message: 'Packaging Access' }));
 router.get('/expense', authMiddleware(['admin', 'expense']), (req, res) => res.json({ message: 'Expense Access' }));
 router.get('/credentials', authMiddleware(['admin', 'credentials']), (req, res) => res.json({ message: 'Credentials Access' }));
+router.get('/expenseD', authMiddleware(['admin', 'expenseD']), (req, res) => res.json({ message: 'Credentials Access' }));
+router.get('/users',  getUsers);
+router.get('/users/:id',  getUserById);
+router.put('/users/:id',  updateUser);
+router.delete('/users/:id', deleteUser);
+
+router.post('/expenseD', expenseDController.createExpense);
+router.get('/expenseD', expenseDController.getAllExpenses);
+router.get('/expenseD/:id', expenseDController.getExpenseById);
+router.put('/expenseD/:id', expenseDController.updateExpense);
+router.delete('/expenseD/:id', expenseDController.deleteExpense);
 module.exports = router
