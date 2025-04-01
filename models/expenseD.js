@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const expenseDSchema = new mongoose.Schema({
-    sNo: { type: Number },
+    sNo: { type: String },
     particular: { type: String },
     subField: { type: String },
     receipt: { type: Number },
@@ -9,6 +9,8 @@ const expenseDSchema = new mongoose.Schema({
     balance: { type: Number },
     paidTo: { type: String },
     approvedBy: { type: String },
+    details: { type: String },
+    remarks: { type: String },
     date: Date
 
 }, { timestamps: true });
