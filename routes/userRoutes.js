@@ -263,7 +263,7 @@ router.put('/users/:id',  updateUser);
 router.delete('/users/:id', deleteUser);
 
 router.post('/expenseD', expenseDController.createExpense);
-router.get('/expenseD', expenseDController.getAllExpenses);
+router.get('/expenseDo', expenseDController.getAllExpenses);
 router.get('/expenseD/:id', expenseDController.getExpenseById);
 router.put('/expenseD/:id', expenseDController.updateExpense);
 router.delete('/expenseD/:id', expenseDController.deleteExpense);
