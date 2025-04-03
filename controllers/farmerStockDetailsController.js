@@ -62,6 +62,7 @@ exports.getStockDetailsByFarmerStockId = async (req, res) => {
             totalMaterialWeight: stock.totalMaterialWeight,
             plasticWeight: stock.plasticWeight,
             packetCount: stock.packetCount,
+            finalCost: stock.finalCost,
             totalWeight: stock.totalWeight,
             totalCalculatedCost: stock.totalCalculatedCost,
             totalCalculatedWeight: stock.totalCalculatedWeight,
