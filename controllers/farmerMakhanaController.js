@@ -21,7 +21,7 @@ exports.calculateMakhana = async (req, res) => {
             // Determine ratePerKg based on makhana value
             const index = { '6 Sutta': 0, '5 Sutta': 1, '4 Sutta': 2, '3 Sutta': 3, 'Others': 4, 'Waste': 5 }[makhana];
             ratePerKg = farmerStock.finalPrices[index];
-            totalCost = quantity * ratePerKg;
+            totalCost = quantity * ratePerKg * bagCount; // Fixed here
 
             // Save the data
             const makhanaData = new FarmerMakhana({
@@ -54,12 +54,13 @@ exports.calculateMakhana = async (req, res) => {
             // Calculate totalCost and total quantity for mixing
             let totalCostMixing = 0;
             let totalQuantityMixing = 0;
+            const bagCountValue = parseFloat(bagCount) || 1; // Default to 1 if bagCount is invalid
 
             mixingDetails.forEach((detail) => {
                 const rateIndex = { '6 Sutta': 0, '5 Sutta': 1, '4 Sutta': 2, '3 Sutta': 3, 'Others': 4, 'Waste': 5 }[detail.productInfo];
                 detail.ratePerKgSmall = farmerStock.finalPrices[rateIndex];
                 detail.quantitySmall = parseFloat(detail.quantitySmall) || 0; // Ensure quantitySmall is a number
-                totalCostMixing += detail.ratePerKgSmall * detail.quantitySmall;
+                totalCostMixing += detail.ratePerKgSmall * detail.quantitySmall * bagCountValue; // Fixed here
                 totalQuantityMixing += detail.quantitySmall;
 
                 // Populate weight fields based on productInfo
@@ -71,7 +72,6 @@ exports.calculateMakhana = async (req, res) => {
             console.log("bagCount:", bagCount);
 
             // Ensure bagCount is a valid number
-            const bagCountValue = parseFloat(bagCount) || 1; // Default to 1 if bagCount is invalid
 
             // Debug: Log the bagCountValue
             console.log("bagCountValue:", bagCountValue);
@@ -165,7 +165,7 @@ exports.updateMakhana = async (req, res) => {
             // Determine ratePerKg based on makhana value
             const index = { '6 Sutta': 0, '5 Sutta': 1, '4 Sutta': 2, '3 Sutta': 3, 'Others': 4, 'Waste': 5 }[makhana];
             ratePerKg = farmerStock.finalPrices[index];
-            totalCost = quantity * ratePerKg;
+            totalCost = quantity * ratePerKg * bagCount; // Fixed here
 
             // Update the Makhana record
             existingMakhana.makhana = makhana;
@@ -197,12 +197,13 @@ exports.updateMakhana = async (req, res) => {
             // Calculate totalCost and total quantity for mixing
             let totalCostMixing = 0;
             let totalQuantityMixing = 0;
+            const bagCountValue = parseFloat(bagCount) || 1; // Default to 1 if bagCount is invalid
 
             mixingDetails.forEach((detail) => {
                 const rateIndex = { '6 Sutta': 0, '5 Sutta': 1, '4 Sutta': 2, '3 Sutta': 3, 'Others': 4, 'Waste': 5 }[detail.productInfo];
                 detail.ratePerKgSmall = farmerStock.finalPrices[rateIndex];
                 detail.quantitySmall = parseFloat(detail.quantitySmall) || 0; // Ensure quantitySmall is a number
-                totalCostMixing += detail.ratePerKgSmall * detail.quantitySmall;
+                totalCostMixing += detail.ratePerKgSmall * detail.quantitySmall * bagCountValue; // Fixed here
                 totalQuantityMixing += detail.quantitySmall;
 
                 // Populate weight fields based on productInfo
@@ -210,7 +211,6 @@ exports.updateMakhana = async (req, res) => {
             });
 
             // Ensure bagCount is a valid number
-            const bagCountValue = parseFloat(bagCount) || 1; // Default to 1 if bagCount is invalid
 
             // Calculate finalWeight fields using bagCountValue
             const finalWeights = {

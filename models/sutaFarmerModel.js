@@ -10,7 +10,7 @@ const SutaFarmerSchema = new mongoose.Schema({
 
 // Middleware to auto-calculate totalCost before saving
 SutaFarmerSchema.pre('save', function(next) {
-    this.totalCost = this.quantity * this.ratePerKg;
+    this.totalCost = this.quantity * this.ratePerKg * this.count;
     next();
 });
 

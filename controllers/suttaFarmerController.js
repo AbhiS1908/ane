@@ -48,10 +48,11 @@ exports.updateFarmerSingleStock = async (req, res) => {
     try {
         const { id } = req.params;
         const { quantity, ratePerKg, count } = req.body;
+        const totalCost = quantity * ratePerKg * count;
 
         const updatedFarmerSingleStock = await SuttaFarmer.findByIdAndUpdate(
             id,
-            { quantity, ratePerKg, count },
+            { quantity, ratePerKg, count, totalCost },
             { new: true }
         );
 
